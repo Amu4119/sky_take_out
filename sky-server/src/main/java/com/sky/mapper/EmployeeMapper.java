@@ -31,4 +31,9 @@ public interface EmployeeMapper {
      * 员工条件分页查询
      * */
     Page<Employee> page(EmployeePageQueryDTO employeePageQueryDTO);
+
+    /**
+     * 启用、禁用员工账号
+     * */
+    void update(Employee employee);
 }
