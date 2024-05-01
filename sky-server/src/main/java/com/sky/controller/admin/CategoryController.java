@@ -12,8 +12,11 @@ import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 分类管理
@@ -26,6 +29,8 @@ public class CategoryController {
 
     @Autowired
     private CategoryService categoryService;
+    @Autowired
+    private RedisTemplate redisTemplate;
 
     /**
      * 新增分类
@@ -60,9 +65,14 @@ public class CategoryController {
      */
     @DeleteMapping
     @ApiOperation("删除分类")
+    @CacheEvict(cacheNames = "setmealCache", key = "#id")
     public Result<String> deleteById(Long id){
         log.info("删除分类：{}", id);
         categoryService.deleteById(id);
+
+        //修改菜品，清除redis中以dish_categoryId开头的数据
+        cleanCache("dish_" + id);
+
         return Result.success();
     }
 
@@ -73,8 +83,13 @@ public class CategoryController {
      */
     @PutMapping
     @ApiOperation("修改分类")
+    @CacheEvict(cacheNames = "setmealCache", key = "#categoryDTO.id")
     public Result<String> update(@RequestBody CategoryDTO categoryDTO){
         categoryService.update(categoryDTO);
+
+        //修改菜品，清除redis中以dish_categoryId开头的数据
+        cleanCache("dish_" + categoryDTO.getId());
+
         return Result.success();
     }
 
@@ -86,8 +101,13 @@ public class CategoryController {
      */
     @PostMapping("/status/{status}")
     @ApiOperation("启用禁用分类")
+    @CacheEvict(cacheNames = "setmealCache", key = "#id")
     public Result<String> startOrStop(@PathVariable("status") Integer status, Long id){
         categoryService.startOrStop(status,id);
+
+        //修改菜品，清除redis中以dish_categoryId开头的数据
+        cleanCache("dish_" + id);
+
         return Result.success();
     }
 
@@ -101,5 +121,11 @@ public class CategoryController {
     public Result<List<Category>> list(Integer type){
         List<Category> list = categoryService.list(type);
         return Result.success(list);
+    }
+
+    //创建一个统一的，用于清除redis缓存的方法
+    private void cleanCache(String pattern){
+        Set keys = redisTemplate.keys(pattern);
+        redisTemplate.delete(keys);
     }
 }
